@@ -186,7 +186,7 @@ def generate_spreadsheet(context, request):
         params = {'validation_error': 'Iteration folder is missing. Please create folder in google docs with title: %s' % iteration_folder_title}
         return manage_iterations(context, request, **params)
 
-    users = session.query(User.email, User.fullname).join((Role, User.roles))\
+    users = session.query(User.email, User.fullname).group_by(User.email, User.fullname).join(User.roles).filter(Role.id.ilike('%developer%'))\
                    .order_by(func.substring(User.fullname, '([^[:space:]]+)(?:,|$)'))
     projects = session.query(Project).join(Customer).filter(Project.active).order_by(Customer.name, Project.name)
 

@@ -1,4 +1,4 @@
-1.4 (unreleased)
+1.4 (2013-04-02)
 ----------------
 
 - fix problem with user role in iteration generation [amleczko]

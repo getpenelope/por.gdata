@@ -1,7 +1,8 @@
 1.5 (unreleased)
 ----------------
 
-- Nothing changed yet.
+- fix configuration for spreadsheet [amleczko]
+- use online iteration template [amleczko]
 
 
 1.4 (2013-04-02)

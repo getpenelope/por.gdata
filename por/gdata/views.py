@@ -4,7 +4,6 @@ import gdata.docs.data
 import logging
 import transaction
 import re
-import os
 import zope.component
 from copy import deepcopy
 
@@ -14,6 +13,7 @@ from pyramid_skins import SkinObject
 from pyramid.renderers import get_renderer
 from pyramid.exceptions import Forbidden
 from pyramid.httpexceptions import HTTPFound
+from pyramid.threadlocal import get_current_registry
 from gdata.calendar.client import CalendarEventQuery
 from dateutil.parser import parse
 from datetime import timedelta
@@ -27,7 +27,6 @@ from por.models import Project, DBSession, User, GlobalConfig, CustomerRequest, 
 
 logging.basicConfig()
 log = logging.getLogger(__file__)
-iteration_folder_title = 'PenelopeIterations'
 
 
 def clear_token(context, request):
@@ -139,11 +138,16 @@ def manage_iterations(context, request, **params):
     folder_iteration = get_iteration_folder(request)
     if folder_iteration:
         log.info("Iteration folder found: %s" % folder_iteration.resource_id.text)
-        docs = request.gclient['DocsClient'].get_doclist(uri='/feeds/default/private/full/%s/contents/-/spreadsheet' % folder_iteration.resource_id.text).entry
-    domain = request.registry.settings.get('por.dashboard.google_domain')
+        docs = request.gclient['DocsClient'].get_doclist(
+                uri='/feeds/default/private/full/%s/contents/-/spreadsheet' % \
+                                      folder_iteration.resource_id.text).entry
+    settings = get_current_registry().settings
+    domain = settings.get('por.dashboard.google_domain')
     params.update({'context':context,
                    'docs': docs,
-                   'iteration_folder': 'https://docs.google.com/a/%s/#%s' % (domain, folder_iteration.resource_id.text.replace('folder:','folders/')),
+                   'iteration_folder': 'https://docs.google.com/a/%s/#%s' % (
+                       domain,
+                       folder_iteration.resource_id.text.replace('folder:','folders/')),
                    'request':request})
 
     return SkinObject('manage_iterations')(**params)
@@ -177,23 +181,34 @@ def generate_spreadsheet(context, request):
     client = request.gclient['DocsClient']
     service = request.gservice['SpreadsheetsService']
     iteration_folder = get_iteration_folder(request)
+    settings = get_current_registry().settings
 
     if not date_start or not date_end:
         params = {'validation_error': 'Please select date range'}
         return manage_iterations(context, request, **params)
 
     if not iteration_folder:
-        params = {'validation_error': 'Iteration folder is missing. Please create folder in google docs with title: %s' % iteration_folder_title}
+        params = {'validation_error':
+                       'Iteration folder is missing. Please create folder in google docs with title: %s' % \
+                       settings.get('por.dashboard.iteration_folder')}
         return manage_iterations(context, request, **params)
 
-    users = session.query(User.email, User.fullname).group_by(User.email, User.fullname).join(User.roles).filter(Role.id.ilike('%developer%'))\
+    users = session.query(User.email, User.fullname)\
+                   .group_by(User.email, User.fullname)\
+                   .join(User.roles).filter(Role.id.ilike('%developer%'))\
                    .order_by(func.substring(User.fullname, '([^[:space:]]+)(?:,|$)'))
-    projects = session.query(Project).join(Customer).filter(Project.active).order_by(Customer.name, Project.name)
 
-    file_path = os.path.join(os.path.dirname(__file__),'uploads','project_template.ods')
-    content_type = gdata.docs.service.SUPPORTED_FILETYPES['ODS']
-    entry = client.Upload(file_path, title='Iteration from %s to %s' % (date_start, date_end), content_type=content_type)
+    projects = session.query(Project).join(Customer)\
+                      .filter(Project.active)\
+                      .order_by(Customer.name, Project.name)
+
+    dockey = settings.get('por.dashboard.iteration_template')
+    resourceid = 'document%%3A%s' % dockey
+    template = client.GetDoc(resourceid)
+    entry = client.copy(template, 'Iteration from %s to %s' % (date_start,
+                                                               date_end))
     client.move(entry, iteration_folder)
+
     sp_id = entry.resource_id.text.split(':')[1]
     wk = service.GetWorksheetsFeed(sp_id).entry[0]
     wk.title.text = '%s_%s' % (date_start, date_end)
@@ -218,7 +233,7 @@ def generate_spreadsheet(context, request):
     #Add user fullnames
     update_cell(cells.entry[5:18], [a.fullname for a in users])
     #Add user working days
-    dae = _get_calendars_events(context, request)
+    dae = _get_calendars_events(users, request)
     dr = [parse(date_start), parse(date_end)]
     update_cell(cells.entry[24:37], [get_working_days(dr,dict(dae).get(u.email,[])) for u in users])
     #Add project names
@@ -231,7 +246,7 @@ def generate_spreadsheet(context, request):
 
 
 @calendar.auth_required
-def _get_calendars_events(context, request):
+def _get_calendars_events(users, request):
 
     """
     It retrieves all avalable calendars from the current user, this means also 'Festivita italiane' and 'Compleanni ed eventi'.
@@ -260,39 +275,45 @@ def _get_calendars_events(context, request):
     query_holidays.start_min = request.params.get('start')
     query_holidays.start_max = request.params.get('end')
 
-    italian_holidays = client.GetCalendarEventFeed(uri='https://www.google.com/calendar/feeds/en.italian%23holiday%40group.v.calendar.google.com/private/full', q=query_holidays)
+    italian_holidays = client.GetCalendarEventFeed(
+            uri='https://www.google.com/calendar/feeds/en.italian%23holiday%40group.v.calendar.google.com/private/full',
+            q=query_holidays)
     cal_holidays_ranges = []
     for holiday in italian_holidays.entry:
         s = parse(holiday.when[0].start)
         e = parse(holiday.when[0].end)
         cal_holidays_ranges.append([s, e-timedelta(minutes=1)])
 
-    attendees = request.registry.settings.get('por.dashboard.vacancy_email')
+    settings = get_current_registry().settings
+    attendees = settings.get('por.dashboard.vacancy_email')
     query = CalendarEventQuery(text_query = attendees)
     query.start_min = request.params.get('start')
     query.start_max = request.params.get('end')
 
-    feed = client.GetAllCalendarsFeed().entry
-
-    for f in feed:
-        theID =  f.id.text
-        username = theID.split('/')[-1].replace('%40','@')
+    for user in users:
+        username = user.email
         feed_uri = client.GetCalendarEventFeedUri(calendar=username, visibility='private', projection='full')
         cal_events_ranges = deepcopy(cal_holidays_ranges)
 
         # get the event feed using the feed_uri and the query params in order to get only those with 'holidays@google.com'
-        events_feed = client.GetCalendarEventFeed(uri=feed_uri, q=query)
-        for an_event in events_feed.entry:
-            s = parse(an_event.when[0].start)
-            e = parse(an_event.when[0].end)
-            cal_events_ranges.append([s, e-timedelta(minutes=1)])
+        try:
+            events_feed = client.GetCalendarEventFeed(uri=feed_uri, q=query)
+            for an_event in events_feed.entry:
+                s = parse(an_event.when[0].start)
+                e = parse(an_event.when[0].end)
+                cal_events_ranges.append([s, e-timedelta(minutes=1)])
+        except RequestError: # gracefully ignore request errors
+            pass
         result.append([username,cal_events_ranges])
 
     return result
 
 
 def get_iteration_folder(request):
-    folders = request.gclient['DocsClient'].get_doclist(uri='/feeds/default/private/full?title=%s&category=folder' % iteration_folder_title)
+    settings = get_current_registry().settings
+    folders = request.gclient['DocsClient'].get_doclist(
+                uri='/feeds/default/private/full?title=%s&category=folder' % \
+                               settings.get('por.dashboard.iteration_folder'))
     for folder in folders.entry:
         return folder
 
@@ -300,7 +321,10 @@ def get_iteration_folder(request):
 class IterationSidebarRenderer(SidebarRenderer):
 
     def render(self, request):
-        self.actions.append(HeaderSidebarAction('iterations',content=u'Iterations', permission='view', no_link=True))
+        self.actions.append(HeaderSidebarAction('iterations',
+                                                content=u'Iterations',
+                                                permission='view',
+                                                no_link=True))
         self.actions.append(SidebarAction('view_iterations',
             content=u'View iterations',
             permission='view_iterations',

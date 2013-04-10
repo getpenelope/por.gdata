@@ -202,6 +202,7 @@ def generate_spreadsheet(context, request):
                       .filter(Project.active)\
                       .order_by(Customer.name, Project.name)
 
+
     dockey = settings.get('por.dashboard.iteration_template')
     resourceid = 'document%%3A%s' % dockey
     template = client.GetDoc(resourceid)
@@ -220,7 +221,7 @@ def generate_spreadsheet(context, request):
     query['min-col'] = '1'
     query['min-row'] = '1'
     query['max-col'] = '19'
-    query['max-row'] = '62'
+    query['max-row'] = '89'
     cells = service.GetCellsFeed(sp_id, wksht_id=wk_id, query=query)
     batchRequest = gdata.spreadsheet.SpreadsheetsCellsFeed()
 

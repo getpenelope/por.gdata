@@ -276,14 +276,17 @@ def _get_calendars_events(users, request):
     query_holidays.start_min = request.params.get('start')
     query_holidays.start_max = request.params.get('end')
 
-    italian_holidays = client.GetCalendarEventFeed(
-            uri='https://www.google.com/calendar/feeds/en.italian%23holiday%40group.v.calendar.google.com/private/full',
-            q=query_holidays)
     cal_holidays_ranges = []
-    for holiday in italian_holidays.entry:
-        s = parse(holiday.when[0].start)
-        e = parse(holiday.when[0].end)
-        cal_holidays_ranges.append([s, e-timedelta(minutes=1)])
+    try:
+        italian_holidays = client.GetCalendarEventFeed(
+                uri='https://www.google.com/calendar/feeds/en.italian%23holiday%40group.v.calendar.google.com/private/full',
+                q=query_holidays)
+        for holiday in italian_holidays.entry:
+            s = parse(holiday.when[0].start)
+            e = parse(holiday.when[0].end)
+            cal_holidays_ranges.append([s, e-timedelta(minutes=1)])
+    except RequestError: # gracefully ignore request errors
+        pass
 
     settings = get_current_registry().settings
     attendees = settings.get('por.dashboard.vacancy_email')
@@ -300,13 +303,14 @@ def _get_calendars_events(users, request):
         try:
             events_feed = client.GetCalendarEventFeed(uri=feed_uri, q=query)
             for an_event in events_feed.entry:
+                if not an_event.when:
+                    continue
                 s = parse(an_event.when[0].start)
                 e = parse(an_event.when[0].end)
                 cal_events_ranges.append([s, e-timedelta(minutes=1)])
         except RequestError: # gracefully ignore request errors
             pass
         result.append([username,cal_events_ranges])
-
     return result
 
 

@@ -1,4 +1,4 @@
-1.7 (unreleased)
+1.7 (2013-04-30)
 ----------------
 
 - gracefully ignore request errors

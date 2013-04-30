@@ -20,7 +20,7 @@ if sys.version_info[:3] < (2,5,0):
     requires.append('pysqlite')
 
 setup(name='por.gdata',
-      version='1.7',
+      version='1.8.dev0',
       description='Penelope gdata integration',
       long_description=README + '\n\n' +  CHANGES,
       classifiers=[

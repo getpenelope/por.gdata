@@ -11,6 +11,7 @@ for more details visit: http://getpenelope.github.com/"""
 CHANGES = open(os.path.join(here, 'CHANGES.txt')).read()
 
 requires = [
+    'distribute',
     'gdata==2.0.14',
     'PasteScript',
     'python-dateutil==1.5'

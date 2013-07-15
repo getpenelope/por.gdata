@@ -1,5 +1,5 @@
-1.7.1 (unreleased)
-----------------
+1.7.1 (2013-07-15)
+------------------
 
 - make iteration activation function much simplier [amleczko]
 

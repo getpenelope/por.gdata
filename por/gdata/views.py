@@ -64,25 +64,25 @@ def activate_iteration(context, request):
     if not docid:
         return view_iterations(context, request, validation_error=u'Missing document_id')
 
-    query = gdata.spreadsheet.service.CellQuery()
+    #query = gdata.spreadsheet.service.CellQuery()
 
     #first take project names
-    query['min-col'] = '3'
-    query['max-col'] = '3'
-    query['min-row'] = '5'
-    cr_raw = get_cell_values(request, query)
+    #query['min-col'] = '3'
+    #query['max-col'] = '3'
+    #query['min-row'] = '5'
+    #cr_raw = get_cell_values(request, query)
 
     session = DBSession()
 
     #deactivate all CR
-    for cr in session.query(CustomerRequest):
-        cr.active = False
+    #for cr in session.query(CustomerRequest):
+    #    cr.active = False
 
     #activate selected CR
-    cr_ids = set([item for sublist in [a.split(',') for a in cr_raw] for item in sublist])
-    crs = session.query(CustomerRequest).filter(CustomerRequest.id.in_(cr_ids))
-    for cr in crs:
-        cr.active = True
+    #cr_ids = set([item for sublist in [a.split(',') for a in cr_raw] for item in sublist])
+    #crs = session.query(CustomerRequest).filter(CustomerRequest.id.in_(cr_ids))
+    #for cr in crs:
+    #    cr.active = True
 
     gc = session.query(GlobalConfig).get(1)
     gc.active_iteration_url = docid

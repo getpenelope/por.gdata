@@ -221,7 +221,7 @@ def generate_spreadsheet(context, request):
     query['min-col'] = '1'
     query['min-row'] = '1'
     query['max-col'] = '19'
-    query['max-row'] = '89'
+    query['max-row'] = '106'
     cells = service.GetCellsFeed(sp_id, wksht_id=wk_id, query=query)
     batchRequest = gdata.spreadsheet.SpreadsheetsCellsFeed()
 

@@ -1,7 +1,7 @@
-1.8 (unreleased)
+1.7.2 (unreleased)
 ----------------
 
-- Nothing changed yet.
+- increase max projects to 107 [amleczko]
 
 
 1.7.1 (2013-07-15)
